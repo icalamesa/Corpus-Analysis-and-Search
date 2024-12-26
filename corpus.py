@@ -41,31 +41,64 @@ class Corpus:
     def list_files(self) -> list:
         return list(self.data_model.keys())
 
-    def update_corpus(self, file_paths_list = None) -> None:
+    def update_corpus(self, file_paths_list: list = None) -> dict:
         """
         Process all text files in the directory: tokenize, preprocess, analyze, and compute TF-IDF.
+        
+        Args:
+            file_paths_list (list): List of file paths to process. If None, processes all files in self.file_paths.
+        
+        Returns:
+            dict: Summary of processing, including successfully added files and skipped files with reasons.
         """
         raw_texts = []
+        skipped_files = []  # Collect details about skipped files
+        added_files = []  # Collect successfully added files
 
         if file_paths_list is None:
             file_paths_list = self.file_paths
 
         for file_path in file_paths_list:
-            print(f"Processing {file_path}...")
-            text = self._read_text_from_file(file_path)
-            text_df = self._tokenize_and_preprocess(text)
-            metrics = self._calculate_metrics(text_df)
-            token_data_df = self._generate_token_data_dataframe(text_df)
-            self.data_model[file_path] = {
-                'text_df': text_df,
-                'token_data_df': token_data_df,
-                'metrics': metrics
-            }
-            
-            raw_texts.append(" ".join(text_df['token'].tolist()))
+            if not file_path.endswith(".txt"):
+                skipped_files.append({
+                    "file": file_path,
+                    "reason": "Invalid file format. Only .txt files are supported."
+                })
+                continue
 
-        self._compute_tfidf(raw_texts)
-        self._save_all_dataframes()
+            try:
+                print(f"Processing {file_path}...")
+                text = self._read_text_from_file(file_path)
+                text_df = self._tokenize_and_preprocess(text)
+                metrics = self._calculate_metrics(text_df)
+                token_data_df = self._generate_token_data_dataframe(text_df)
+
+                # Update the data model with processed data
+                self.data_model[file_path] = {
+                    'text_df': text_df,
+                    'token_data_df': token_data_df,
+                    'metrics': metrics
+                }
+                raw_texts.append(" ".join(text_df['token'].tolist()))
+                added_files.append(file_path)  # Add to successful files
+
+            except Exception as e:
+                skipped_files.append({
+                    "file": file_path,
+                    "reason": f"Error during processing: {str(e)}"
+                })
+                continue
+
+        # Compute TF-IDF for valid files
+        if raw_texts:
+            self._compute_tfidf(raw_texts)
+            self._save_all_dataframes()
+
+        # Return a summary of added and skipped files
+        return {
+            "added_files": added_files,
+            "skipped_files": skipped_files
+        }
 
 
     def _save_dataframe(self, df: pd.DataFrame, filename: str, file_format: str = 'csv') -> None:
@@ -197,8 +230,8 @@ class Corpus:
         
         # Create a DataFrame with results
         results = pd.DataFrame({
-            'File Path': list(self.data_model.keys()),
-            'Similarity': similarities
+            'File': list([os.path.basename(key) for key in self.data_model.keys()]),
+            'Similarity': [round(similarity,2) for similarity in similarities]
         }).sort_values(by='Similarity', ascending=False)
         
         return results
