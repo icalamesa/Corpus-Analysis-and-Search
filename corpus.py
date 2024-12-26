@@ -36,15 +36,21 @@ class Corpus:
             print(f"Warning: No text files found in {self.text_folder}.")
 
         # Process all text data upon initialization
-        self._process_corpus()
+        self.update_corpus()
 
-    def _process_corpus(self):
+    def list_files(self) -> list:
+        return list(self.data_model.keys())
+
+    def update_corpus(self, file_paths_list = None) -> None:
         """
         Process all text files in the directory: tokenize, preprocess, analyze, and compute TF-IDF.
         """
         raw_texts = []
 
-        for file_path in self.file_paths:
+        if file_paths_list is None:
+            file_paths_list = self.file_paths
+
+        for file_path in file_paths_list:
             print(f"Processing {file_path}...")
             text = self._read_text_from_file(file_path)
             text_df = self._tokenize_and_preprocess(text)
@@ -202,18 +208,77 @@ class Corpus:
     # Private methods
 
     def _read_text_from_file(self, filepath: str) -> str:
+        """
+        Reads the content of a text file and returns it as a single string.
+
+        Args:
+            filepath (str): Path to the text file.
+
+        Returns:
+            str: The content of the file as a single string with newline characters removed.
+
+        Scope:
+            - Reads raw text from an external file.
+            - Does not modify or interact with the `Corpus` data model.
+        """
         with open(filepath, "r") as file:
             return file.read().replace('\n', '')
 
     def _get_files_from_directory(self, path: str) -> list:
+        """
+        Retrieves a list of `.txt` files from a specified directory.
+
+        Args:
+            path (str): Path to the directory to search for text files.
+
+        Returns:
+            list: A list of file paths for all `.txt` files in the directory.
+
+        Scope:
+            - Reads directory contents.
+            - Does not modify or interact with the `Corpus` data model.
+        """
         return [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.txt')]
 
     def _tokenize_and_preprocess(self, text: str) -> pd.DataFrame:
+        """
+        Tokenizes and preprocesses a raw text string into a structured DataFrame.
+
+        Args:
+            text (str): Raw text to be tokenized and preprocessed.
+
+        Returns:
+            pd.DataFrame: A DataFrame with a single column (`token`) containing processed tokens.
+
+        Scope:
+            - Reads raw text (input).
+            - Outputs a structured DataFrame with basic tokenization and normalization.
+            - Does not directly interact with the `Corpus` data model.
+        """
         tokens = word_tokenize(text.lower())
         text_df = pd.DataFrame(tokens, columns=['token'])
         return self._preprocess_text_df(text_df)
 
     def _preprocess_text_df(self, text_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Performs advanced preprocessing on a DataFrame of tokens:
+        - Lemmatization
+        - Part-of-speech tagging
+        - Removal of non-alphabetic tokens
+        - Removal of stopwords
+        - Filtering of short tokens (<3 characters)
+
+        Args:
+            text_df (pd.DataFrame): A DataFrame with a `token` column to preprocess.
+
+        Returns:
+            pd.DataFrame: The preprocessed DataFrame with additional columns like `pos_tag`.
+
+        Scope:
+            - Reads and modifies a `text_df`.
+            - Adds part-of-speech tagging and filters tokens.
+            - Does not directly interact with the `Corpus` data model.
+        """
         text_df['token'] = text_df['token'].apply(self.lemmatizer.lemmatize)
         pos_tags = pos_tag(text_df['token'].tolist())
         text_df['pos_tag'] = [tag for _, tag in pos_tags]
@@ -225,6 +290,24 @@ class Corpus:
         return text_df
 
     def _generate_token_data_dataframe(self, text_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generates a DataFrame with token frequency counts and normalized scores.
+
+        Args:
+            text_df (pd.DataFrame): A DataFrame with a `token` column to analyze.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the following columns:
+                - `Token`: Unique tokens.
+                - `Count`: Frequency of each token.
+                - `minmax_norm`: Min-max normalized frequencies.
+                - `Index`: Token indices.
+
+        Scope:
+            - Reads a `text_df` for frequency analysis.
+            - Outputs a token analysis DataFrame.
+            - Does not directly interact with the `Corpus` data model.
+        """
         frequency_series = text_df['token'].value_counts()
         token_data_df = frequency_series.reset_index()
         token_data_df.columns = ['Token', 'Count']
@@ -235,6 +318,21 @@ class Corpus:
         return token_data_df
 
     def _compute_tfidf(self, raw_texts: list):
+        """
+        Computes TF-IDF scores for a collection of raw texts and updates the data model.
+
+        Args:
+            raw_texts (list): A list of raw text strings, each representing a document in the corpus.
+
+        Returns:
+            None: Updates the `self.data_model` with the following for each file:
+                - `tfidf_df`: A DataFrame containing tokens and their corresponding TF-IDF scores.
+
+        Scope:
+            - Reads raw text (input).
+            - Modifies the `self.data_model` by adding a `tfidf_df` for each file.
+            - Uses the vectorizer to compute TF-IDF for all texts.
+        """
         tfidf_matrix = self.vectorizer.fit_transform(raw_texts)
         feature_names = self.vectorizer.get_feature_names_out()
 
@@ -246,6 +344,7 @@ class Corpus:
                 'TFIDF': tfidf_scores
             }).sort_values(by='TFIDF', ascending=False)
             self.data_model[file_path]['tfidf_df'] = tfidf_df
+
 
     def _compute_query_tfidf(self, query: str) -> pd.DataFrame:
         """
@@ -277,9 +376,3 @@ class Corpus:
         """
         long_words = text_df[text_df['token'].str.len() > 6]
         return len(long_words) / len(text_df) if not text_df.empty else 0
-
-if __name__ == "__main__":
-    corpus = Corpus()
-    #corpus.plot_graph()
-    print(corpus.analyze_all_texts())
-    print(corpus.search("America is great again"))

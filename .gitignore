@@ -1,0 +1,44 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+corpus_env/
+venv/
+env/
+
+# Environment variables and secrets
+*.env
+
+# Logs
+*.log
+*.out
+*.err
+
+# Cache files
+*.cache
+*.tmp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Python package files
+*.egg-info/
+build/
+dist/
+
+# IDE-specific files
+.vscode/
+.idea/
+*.swp
+
+# Flask-specific files
+instance/
+*.sqlite
+*.db
