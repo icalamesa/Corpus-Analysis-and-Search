@@ -37,6 +37,7 @@ dist/
 .vscode/
 .idea/
 *.swp
+*workspace
 
 # Flask-specific files
 instance/
